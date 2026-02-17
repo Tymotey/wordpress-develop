@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 global $pagenow,
 	$is_lynx, $is_gecko, $is_winIE, $is_macIE, $is_opera, $is_NS4, $is_safari, $is_chrome, $is_iphone, $is_IE, $is_edge,
-	$is_apache, $is_IIS, $is_iis7, $is_nginx, $is_caddy;
+	$is_apache, $is_IIS, $is_iis7, $is_nginx, $is_caddy, $litespeed_type, $is_litespeed;
 
 // On which page are we?
 if ( is_admin() ) {
@@ -122,7 +122,7 @@ $is_IE = ( $is_macIE || $is_winIE );
  *
  * @global bool $is_apache
  */
-$is_apache = ( str_contains( $_SERVER['SERVER_SOFTWARE'], 'Apache' ) || str_contains( $_SERVER['SERVER_SOFTWARE'], 'LiteSpeed' ) );
+$is_apache = str_contains( $_SERVER['SERVER_SOFTWARE'], 'Apache' );
 
 /**
  * Whether the server software is Nginx or something else.
@@ -151,6 +151,49 @@ $is_IIS = ! $is_apache && ( str_contains( $_SERVER['SERVER_SOFTWARE'], 'Microsof
  * @global bool $is_iis7
  */
 $is_iis7 = $is_IIS && (int) substr( $_SERVER['SERVER_SOFTWARE'], strpos( $_SERVER['SERVER_SOFTWARE'], 'Microsoft-IIS/' ) + 14 ) >= 7;
+
+/**
+ * Test what kind of LiteSpeed software is running.
+ *
+ * @return string Litespeed software type.
+ */
+function wp_get_litespeed_type() {
+	$software = $_SERVER['SERVER_SOFTWARE'] ?? '';
+	if ( $software === 'LiteSpeed' ) return 'LITESPEED_SERVER_ENT';
+
+	$edition = $_SERVER['LSWS_EDITION'] ?? '';
+    if ( 0 === strpos( $edition, 'Openlitespeed' ) ) return 'LITESPEED_SERVER_OLS';
+
+	if ( !empty( $_SERVER['HTTP_X_LSCACHE'] ) ) return 'LITESPEED_SERVER_ADC';
+
+	return 'NONE';
+}
+
+/**
+ * What type of LiteSpeed software is running.
+ *
+ * @global string $litespeed_type
+ */
+$litespeed_type = wp_get_litespeed_type();
+
+/**
+ * Whether the server is running LiteSpeed.
+ *
+ * @global bool $is_litespeed
+ */
+$is_litespeed = ! $is_apache && ! $is_IIS && 'NONE' !== $litespeed_type;
+
+// LiteSpeed specific variables
+if( $is_litespeed ){
+	! defined( 'LITESPEED_SERVER_TYPE' ) && define( 'LITESPEED_SERVER_TYPE', $litespeed_type );
+	
+	if( ! empty( $_SERVER['X-LSCACHE'] ) || 'LITESPEED_SERVER_ADC' === LITESPEED_SERVER_TYPE || defined( 'LITESPEED_CLI' ) ) {
+		! defined( 'LITESPEED_ALLOWED' ) && define( 'LITESPEED_ALLOWED', true );
+	}
+	if ( ! defined( 'LSWCP_ESI_SUPPORT' ) ) {
+		define( 'LSWCP_ESI_SUPPORT', LITESPEED_SERVER_TYPE !== 'LITESPEED_SERVER_OLS' );
+	}
+}
 
 /**
  * Test if the current browser runs on a mobile device (smart phone, tablet, etc.).
